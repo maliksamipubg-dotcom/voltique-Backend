@@ -80,16 +80,13 @@ const getMongoUri = () => {
     throw new Error('MONGODB_URI is not set or is invalid in the environment variables')
   }
 
-  // Append the database name only when the URI does not already target one.
-  if (/\?/.test(base)) {
-    const [head, query] = base.split('?')
-    const hasDb = /\/[^/]+$/.test(head)
-    return hasDb ? `${head}?${query}` : `${head}/${DEFAULT_DB_NAME}?${query}`
-  }
-  if (base.endsWith('/')) {
-    return `${base}${DEFAULT_DB_NAME}`
-  }
-  if (/\/[^/]+$/.test(base)) {
+  // A database path (or query string) only exists AFTER the protocol prefix.
+  // Checking for any "/" without stripping the protocol would wrongly match
+  // the "//" inside "mongodb+srv://" and connect to the driver's default
+  // ("test") database instead of the real one.
+  const rest = base.replace(/^mongodb(\+srv)?:\/\//, '')
+  if (rest.includes('/')) {
+    // URI already targets a database or has a query string — use as-is.
     return base
   }
   return `${base}/${DEFAULT_DB_NAME}`
@@ -120,6 +117,7 @@ const connectDB = async () => {
     await connectionPromise
   } catch (error) {
     connectionPromise = null
+    console.log('MongoDB Connection Failed:', error && error.message ? error.message : error)
     throw error
   }
 

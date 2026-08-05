@@ -28,7 +28,7 @@ for (const key of CRITICAL_ENV_VARS) {
 // connection attempt is cached and shared inside config/mongodb.js, so this
 // never opens a duplicate connection.
 connectDB().catch((error) => {
-  console.log('Initial MongoDB connection attempt failed:', error.message)
+  console.log('MongoDB Connection Failed:', error.message)
 })
 
 connectCloudinary()
@@ -69,7 +69,7 @@ app.use(async (req, res, next) => {
     await connectDB()
     next()
   } catch (error) {
-    console.log('Database connection guard failed:', error.message)
+    console.log('MongoDB Connection Failed:', error.message)
     res.status(503).json({ success: false, message: 'Database temporarily unavailable. Please try again in a moment.' })
   }
 })
@@ -94,7 +94,7 @@ if (process.env.VERCEL !== '1') {
       app.listen(port, () => console.log('Server started on PORT : ' + port))
     })
     .catch((error) => {
-      console.log('Failed to connect to MongoDB at startup:', error.message)
+      console.log('MongoDB Connection Failed:', error.message)
       process.exit(1)
     })
 }
