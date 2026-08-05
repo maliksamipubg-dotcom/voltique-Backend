@@ -152,6 +152,24 @@ const cancelOrder = async (req,res) =>{
     }
 }
 
+//update advance payment for admin panel
+const updateAdvancePayment = async (req,res) =>{
+    try {
+        const { orderId, advancePayment } = req.body
+        const order = await orderModel.findById(orderId)
+        if (!order) {
+            return res.json({success:false,message:'Order not found'})
+        }
+        const amount = Number(advancePayment)
+        const value = Number.isFinite(amount) && amount > 0 ? amount : 0
+        const updated = await orderModel.findByIdAndUpdate(orderId, { advancePayment: value }, { new:true })
+        res.json({success:true,message:'Advance Payment Saved',order:updated})
+    } catch (error) {
+        console.log(error)
+        res.json({success:false,message:error.message})
+    }
+}
+
 //delete order for admin panel (also removes its reviews)
 const deleteOrder = async (req,res) =>{
     try {
@@ -176,4 +194,4 @@ const deleteOrder = async (req,res) =>{
     }
 }
 
-export {placeOrder,placeOrderStripe,placeOrderRazorpay,allOrders,userOrders,trackOrder,updateStatus,cancelOrder,deleteOrder}
+export {placeOrder,placeOrderStripe,placeOrderRazorpay,allOrders,userOrders,trackOrder,updateStatus,cancelOrder,deleteOrder,updateAdvancePayment}

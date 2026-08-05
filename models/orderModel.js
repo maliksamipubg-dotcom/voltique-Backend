@@ -14,6 +14,7 @@ const orderSchema = new mongoose.Schema({
     statusUpdates:[{ status: String, date: Number }],
     cancelledBy:{ type: String },
     cancelledAt:{ type: Number },
+    advancePayment:{ type: Number, default: 0 },
 })
 const orderModel = mongoose.models.order || mongoose.model('order',orderSchema)
 export default orderModel;

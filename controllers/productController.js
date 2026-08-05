@@ -1,5 +1,16 @@
 import{v2 as cloudinary} from "cloudinary"
 import productModel from "../models/productModel.js"
+import cache from "../utils/cache.js"
+
+const PRODUCTS_CACHE_KEY = 'catalog:products'
+const CATEGORIES_CACHE_KEY = 'catalog:categories'
+
+// Product or category mutations change the catalog payload served to the
+// storefront, so both caches must be dropped together.
+const invalidateCatalogCache = () => {
+    cache.invalidateByPrefix(PRODUCTS_CACHE_KEY)
+    cache.invalidateByPrefix(CATEGORIES_CACHE_KEY)
+}
 
 const extractPublicId = (url) => {
     try {
@@ -105,6 +116,8 @@ const addProduct = async (req,res) => {
         }
         const product = new productModel(productData);
         await product.save()
+
+        invalidateCatalogCache()
         
         res.json({ success: true, message: "Product Added" })
     } catch (error) {
@@ -166,6 +179,7 @@ const updateProduct = async (req,res) => {
             image: mergedImages
         }
         await productModel.findByIdAndUpdate(id, updateData)
+        invalidateCatalogCache()
         res.json({ success: true, message: "Product Updated" })
     } catch (error) {
         console.log(error)
@@ -176,8 +190,20 @@ const updateProduct = async (req,res) => {
 //function for list product
 const listProducts = async (req,res) => {
     try {
-        const products = await productModel.find({});
-        res.json({success:true,products})
+        // Serve the cached, pre-serialized payload when available so repeat
+        // requests skip MongoDB and JSON serialization entirely.
+        const cached = cache.get(PRODUCTS_CACHE_KEY)
+        if (cached) {
+            res.setHeader('Content-Type', 'application/json')
+            return res.send(cached)
+        }
+        // .lean() returns plain JS objects instead of hydrated Mongoose
+        // documents, which is significantly faster for read-only queries.
+        const products = await productModel.find({}).lean()
+        const payload = JSON.stringify({success:true,products})
+        cache.set(PRODUCTS_CACHE_KEY, payload)
+        res.setHeader('Content-Type', 'application/json')
+        res.send(payload)
     } catch (error) {
         console.log(error)
         res.json({success:false,message:error.message})
@@ -195,6 +221,7 @@ const removeProduct = async (req,res) => {
             await deleteCloudinaryImages(product.image)
         }
         await productModel.findByIdAndDelete(req.body.id)
+        invalidateCatalogCache()
         res.json({success:true,message:"Product Removed"})
 
     } catch (error) {

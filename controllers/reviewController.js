@@ -2,6 +2,9 @@ import reviewModel from "../models/reviewModel.js";
 import orderModel from "../models/orderModel.js";
 import userModel from "../models/userModel.js";
 import productModel from "../models/productModel.js";
+import cache from "../utils/cache.js";
+
+const PRODUCTS_CACHE_KEY = 'catalog:products'
 
 const recomputeProductRating = async (productId) => {
     try {
@@ -13,6 +16,8 @@ const recomputeProductRating = async (productId) => {
             avg = Math.round((sum / reviewCount) * 10) / 10
         }
         await productModel.findByIdAndUpdate(productId, { avgRating: avg, reviewCount })
+        // avgRating / reviewCount are shown in the catalog, so drop the cache.
+        cache.invalidateByPrefix(PRODUCTS_CACHE_KEY)
     } catch (error) {
         console.log(error)
     }

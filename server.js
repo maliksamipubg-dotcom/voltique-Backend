@@ -3,6 +3,7 @@ import cors from 'cors'
 import 'dotenv/config'
 import connectDB from './config/mongodb.js'
 import connectCloudinary from './config/cloudinary.js'
+import ensureIndexes from './utils/dbIndexes.js'
 import userRouter from './routes/userRoute.js'
 import productRouter from './routes/productRoute.js'
 import cartRouter from './routes/cartRoute.js'
@@ -27,9 +28,17 @@ for (const key of CRITICAL_ENV_VARS) {
 // have to wait for module-load + connect. Safe to call repeatedly — the
 // connection attempt is cached and shared inside config/mongodb.js, so this
 // never opens a duplicate connection.
-connectDB().catch((error) => {
-  console.log('MongoDB Connection Failed:', error.message)
-})
+connectDB()
+  .then(() => {
+    // Ensure query indexes exist. Runs in the background and never blocks
+    // requests — an unindexed query is slower but still works.
+    ensureIndexes().catch((error) => {
+      console.log('Index setup failed:', error && error.message ? error.message : error)
+    })
+  })
+  .catch((error) => {
+    console.log('MongoDB Connection Failed:', error.message)
+  })
 
 connectCloudinary()
 

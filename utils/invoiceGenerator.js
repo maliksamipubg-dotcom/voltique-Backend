@@ -90,6 +90,8 @@ const buildInvoice = (doc, order, itemImages) => {
         0
     )
     const grandTotal = Number(order.amount) || subtotal
+    const advancePayment = Number(order.advancePayment) || 0
+    const remainingBalance = Math.max(0, grandTotal - advancePayment)
     const discount = Number(order.discount) || 0
     const tax = Number(order.tax) || 0
     const shipping = Number.isFinite(Number(order.shipping))
@@ -492,7 +494,7 @@ const buildInvoice = (doc, order, itemImages) => {
     // ------------------------------------------------------------------
     // Payment summary
     // ------------------------------------------------------------------
-    ensureSpace(180)
+    ensureSpace(260)
 
     const sumW = 250
     const sumX = PAGE.width - MARGIN - sumW
@@ -536,6 +538,27 @@ const buildInvoice = (doc, order, itemImages) => {
     doc.text(fmtPrice(grandTotal), sumX + 14, y + 10, { width: sumW - 28, align: 'right', lineBreak: false })
     doc.restore()
     y += gtH
+
+    // Advance Payment (deducted from grand total; always shown, Rs 0 when none)
+    y += 8
+    setFont('normal', 9)
+    doc.fillColor(BRAND.muted)
+    doc.text('Advance Payment', sumX, y, { width: sumW - 110, lineBreak: false })
+    setFont('normal', 9)
+    doc.fillColor(BRAND.danger)
+    doc.text(`- ${fmtPrice(advancePayment)}`, sumX + 100, y, { width: sumW - 100, align: 'right', lineBreak: false })
+    y += 18
+
+    // Remaining balance (highlighted)
+    const rbH = 30
+    doc.save()
+    doc.roundedRect(sumX, y, sumW, rbH, 6).fill(BRAND.green)
+    setFont('bold', 10)
+    doc.fillColor(BRAND.white)
+    doc.text('REMAINING BALANCE', sumX + 14, y + 10, { width: 180, lineBreak: false })
+    doc.text(fmtPrice(remainingBalance), sumX + 14, y + 10, { width: sumW - 28, align: 'right', lineBreak: false })
+    doc.restore()
+    y += rbH
 
     // ------------------------------------------------------------------
     // Thank you footer
