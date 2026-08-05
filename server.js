@@ -14,7 +14,23 @@ import categoryRouter from './routes/categoryRoute.js'
 //App Config
 const app = express()
 const port = process.env.PORT || 4000
-connectDB()
+
+// Verify critical environment variables are present (values are never logged).
+const CRITICAL_ENV_VARS = ['MONGODB_URI', 'JWT_SECRET', 'CLOUDINARY_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_SECRET_KEY']
+for (const key of CRITICAL_ENV_VARS) {
+  if (!process.env[key]) {
+    console.log('Missing environment variable: ' + key)
+  }
+}
+
+// Kick off the connection during cold start so the first request does not
+// have to wait for module-load + connect. Safe to call repeatedly — the
+// connection attempt is cached and shared inside config/mongodb.js, so this
+// never opens a duplicate connection.
+connectDB().catch((error) => {
+  console.log('Initial MongoDB connection attempt failed:', error.message)
+})
+
 connectCloudinary()
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://voltiquehub.vercel.app,http://localhost:5173,http://localhost:3000,http://localhost:4000')
@@ -44,6 +60,20 @@ app.use(cors({
   credentials: false,
 }))
 
+// Database connection guard: Express never processes an API request before
+// MongoDB is connected. Concurrent cold-start requests share a single cached
+// connection attempt (see config/mongodb.js) instead of buffering queries for
+// 10 seconds and failing with "Operation buffering timed out after 10000ms".
+app.use(async (req, res, next) => {
+  try {
+    await connectDB()
+    next()
+  } catch (error) {
+    console.log('Database connection guard failed:', error.message)
+    res.status(503).json({ success: false, message: 'Database temporarily unavailable. Please try again in a moment.' })
+  }
+})
+
 //api endpoints
 app.use('/api/user',userRouter)
 app.use('/api/product',productRouter )
@@ -56,9 +86,17 @@ app.get('/',(req,res)=>{
 })
 
 // Vercel runs the exported Express app as a serverless function.
-// app.listen() is only used when running locally.
+// app.listen() is only used when running locally, and only after MongoDB
+// has connected successfully.
 if (process.env.VERCEL !== '1') {
-  app.listen(port, ()=> console.log('Server started on PORT : '+ port))
+  connectDB()
+    .then(() => {
+      app.listen(port, () => console.log('Server started on PORT : ' + port))
+    })
+    .catch((error) => {
+      console.log('Failed to connect to MongoDB at startup:', error.message)
+      process.exit(1)
+    })
 }
 
 export default app
