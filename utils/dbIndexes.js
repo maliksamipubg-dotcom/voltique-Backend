@@ -2,6 +2,7 @@ import productModel from '../models/productModel.js'
 import categoryModel from '../models/categoryModel.js'
 import reviewModel from '../models/reviewModel.js'
 import orderModel from '../models/orderModel.js'
+import manualInvoiceModel from '../models/manualInvoiceModel.js'
 
 // Ensures the database indexes used by the most frequent public queries exist.
 // Index creation is idempotent (same spec on an existing index is a no-op),
@@ -27,6 +28,9 @@ const ensureIndexes = async () => {
     orderModel.collection.createIndex({ userId: 1, date: -1 }),
     orderModel.collection.createIndex({ orderId: 1 }),
     orderModel.collection.createIndex({ date: -1 }),
+    // Manual invoice queries
+    manualInvoiceModel.collection.createIndex({ invoiceNumber: 1 }),
+    manualInvoiceModel.collection.createIndex({ date: -1 }),
   ]
 
   const results = await Promise.allSettled(tasks)
