@@ -200,7 +200,7 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     doc.fillColor(BRAND.muted)
     doc.text('voltiquehubsupport@gmail.com', MARGIN, contactY, { width: 175, lineBreak: false })
     doc.text('03063720139', MARGIN, contactY + 11, { width: 175, lineBreak: false })
-    doc.text('Shop No. 65, Iqbal Market, Karachi', MARGIN, contactY + 22, { width: 175, lineBreak: false })
+    doc.text('Saddar, Karachi, Pakistan', MARGIN, contactY + 22, { width: 175, lineBreak: false })
 
     // Right: INVOICE title + invoice number badge + meta rows
     const rightX = PAGE.width - MARGIN - 190
