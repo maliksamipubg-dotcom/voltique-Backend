@@ -81,7 +81,7 @@ const fetchImageBuffer = async (url) => {
 // ---------------------------------------------------------------------------
 // Main invoice builder
 // ---------------------------------------------------------------------------
-const buildInvoice = (doc, order, itemImages) => {
+const buildInvoice = (doc, order, itemImages, opts) => {
     const items = Array.isArray(order.items) ? order.items : []
     const address = order.address || {}
 
@@ -98,7 +98,6 @@ const buildInvoice = (doc, order, itemImages) => {
         ? Number(order.shipping)
         : Math.max(0, grandTotal - subtotal + discount - tax)
 
-    const customerName = [address.firstName, address.lastName].filter(Boolean).join(' ') || '—'
     const invoiceNumber = buildInvoiceNumber(order)
     const paymentMethod = order.paymentMethod === 'COD' ? 'Cash On Delivery' : (order.paymentMethod || '—')
     const orderDate = order.date ? new Date(order.date) : null
@@ -201,7 +200,7 @@ const buildInvoice = (doc, order, itemImages) => {
     doc.fillColor(BRAND.muted)
     doc.text('voltiquehubsupport@gmail.com', MARGIN, contactY, { width: 175, lineBreak: false })
     doc.text('03063720139', MARGIN, contactY + 11, { width: 175, lineBreak: false })
-    doc.text('Saddar, Karachi, Pakistan', MARGIN, contactY + 22, { width: 175, lineBreak: false })
+    doc.text('Shop No. 65, Iqbal Market, Karachi', MARGIN, contactY + 22, { width: 175, lineBreak: false })
 
     // Right: INVOICE title + invoice number badge + meta rows
     const rightX = PAGE.width - MARGIN - 190
@@ -256,18 +255,29 @@ const buildInvoice = (doc, order, itemImages) => {
     const cardW = (CONTENT_WIDTH - cardGap) / 2
     const streetLine = buildStreetLine(address)
 
+    // Optional customer rows (email / city / state / postal code / country)
+    // are only rendered when they have a value. Automatic order invoices keep
+    // the "—" fallback; manual invoices opt in via omitEmptyAddressRows so that
+    // blank optional fields are simply omitted instead of shown as "—".
+    const omitEmpty = !!(opts && opts.omitEmptyAddressRows)
+    const rowValue = (value) => {
+        const text = value == null ? '' : String(value).trim()
+        return text === '' ? (omitEmpty ? null : '—') : text
+    }
+    const customerName = [address.firstName, address.lastName].filter(Boolean).join(' ').trim() || (omitEmpty ? null : '—')
+
     const leftRows = [
         ['Name', customerName],
-        ['Phone', address.phone || '—'],
-        ['Email', address.email || '—'],
-    ]
+        ['Phone', rowValue(address.phone)],
+        ['Email', rowValue(address.email)],
+    ].filter((row) => row[1] !== null)
     const rightRows = [
-        ['Address', streetLine],
-        ['City', address.city || '—'],
-        ['State', address.state || '—'],
-        ['Postal Code', address.zipcode || '—'],
-        ['Country', address.country || '—'],
-    ]
+        ['Address', streetLine === '—' ? (omitEmpty ? null : '—') : streetLine],
+        ['City', rowValue(address.city)],
+        ['State', rowValue(address.state)],
+        ['Postal Code', rowValue(address.zipcode)],
+        ['Country', rowValue(address.country)],
+    ].filter((row) => row[1] !== null)
 
     const measureCard = (rows) => {
         setFont('normal', 9)
@@ -601,7 +611,7 @@ const buildInvoice = (doc, order, itemImages) => {
 // binary Buffer. No temp files are written and nothing is streamed until the
 // document is complete, so failures never leave a truncated/aborted response.
 // ---------------------------------------------------------------------------
-export const buildInvoicePdfBuffer = async (order) => {
+export const buildInvoicePdfBuffer = async (order, opts = {}) => {
     const items = Array.isArray(order.items) ? order.items : []
 
     const settled = await Promise.allSettled(
@@ -642,7 +652,7 @@ export const buildInvoicePdfBuffer = async (order) => {
         doc.on('error', (err) => reject(err))
 
         try {
-            buildInvoice(doc, order, itemImages)
+            buildInvoice(doc, order, itemImages, opts)
             doc.end()
         } catch (err) {
             reject(err)

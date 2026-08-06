@@ -16,8 +16,8 @@ const toInvoiceOrderShape = (invoice) => {
         discount: invoice.discount,
         advancePayment: invoice.advancePayment,
         tax: 0,
-        shipping: 0,
-        paymentMethod: 'Manual',
+        shipping: invoice.shippingCharges || 0,
+        paymentMethod: invoice.paymentMethod || 'COD',
         date: invoice.date,
         address: {
             firstName: nameParts[0] || '',
@@ -27,10 +27,10 @@ const toInvoiceOrderShape = (invoice) => {
             street: invoice.customer.address || '',
             area: '',
             town: '',
-            city: '',
-            state: '',
-            zipcode: '',
-            country: '',
+            city: invoice.customer.city || '',
+            state: invoice.customer.state || '',
+            zipcode: invoice.customer.postalCode || '',
+            country: invoice.customer.country || '',
         },
     }
 }
@@ -44,7 +44,7 @@ const generateInvoiceNumber = () => {
 // so the stored document is always available for re-download/print later.
 const createManualInvoice = async (req, res) => {
     try {
-        const { customer, items, discount, advancePayment, notes } = req.body
+        const { customer, items, discount, advancePayment, notes, paymentMethod, shippingCharges } = req.body
 
         if (!customer || !customer.name || !customer.phone || !customer.address) {
             return res.json({ success: false, message: 'Customer name, phone number and address are required' })
@@ -70,10 +70,14 @@ const createManualInvoice = async (req, res) => {
             return res.json({ success: false, message: 'Select at least one product with a valid price and quantity' })
         }
 
+        const method = paymentMethod === 'Online Payment' ? 'Online Payment' : 'COD'
+        const rawShipping = Number(shippingCharges)
+        const shipping = Number.isFinite(rawShipping) && rawShipping > 0 ? rawShipping : 0
+
         const subtotal = cleanItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
         const disc = Number(discount) || 0
         const adv = Number(advancePayment) || 0
-        const grandTotal = Math.max(0, subtotal - disc)
+        const grandTotal = Math.max(0, subtotal + shipping - disc)
         const remainingBalance = Math.max(0, grandTotal - adv)
 
         let invoiceNumber = generateInvoiceNumber()
@@ -83,11 +87,17 @@ const createManualInvoice = async (req, res) => {
 
         const invoice = new manualInvoiceModel({
             invoiceNumber,
+            paymentMethod: method,
+            shippingCharges: shipping,
             customer: {
                 name: String(customer.name).trim(),
                 phone: String(customer.phone).trim(),
                 email: String(customer.email || '').trim(),
                 address: String(customer.address).trim(),
+                city: String(customer.city || '').trim(),
+                state: String(customer.state || '').trim(),
+                postalCode: String(customer.postalCode || '').trim(),
+                country: String(customer.country || '').trim(),
             },
             items: cleanItems,
             subtotal,
@@ -141,7 +151,7 @@ const downloadManualInvoicePdf = async (req, res) => {
         if (!invoice) {
             return res.json({ success: false, message: 'Invoice not found' })
         }
-        const pdfBuffer = await buildInvoicePdfBuffer(toInvoiceOrderShape(invoice))
+        const pdfBuffer = await buildInvoicePdfBuffer(toInvoiceOrderShape(invoice), { omitEmptyAddressRows: true })
         const fileName = `Invoice-${invoice.invoiceNumber}.pdf`
         res.status(200)
         res.setHeader('Content-Type', 'application/pdf')

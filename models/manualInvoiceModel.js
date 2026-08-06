@@ -2,11 +2,17 @@ import mongoose from "mongoose"
 
 const manualInvoiceSchema = new mongoose.Schema({
     invoiceNumber:{ type: String, required: true, unique: true },
+    paymentMethod:{ type: String, default: 'COD' },
+    shippingCharges:{ type: Number, default: 0 },
     customer:{
         name:{ type: String, required: true },
         phone:{ type: String, required: true },
         email:{ type: String, default: '' },
         address:{ type: String, required: true },
+        city:{ type: String, default: '' },
+        state:{ type: String, default: '' },
+        postalCode:{ type: String, default: '' },
+        country:{ type: String, default: '' },
     },
     items:[{
         productId:{ type: String },
