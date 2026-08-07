@@ -10,6 +10,7 @@ const CATEGORIES_CACHE_KEY = 'catalog:categories'
 const invalidateCatalogCache = () => {
     cache.invalidateByPrefix(PRODUCTS_CACHE_KEY)
     cache.invalidateByPrefix(CATEGORIES_CACHE_KEY)
+    cache.invalidate('seo:sitemap')
 }
 
 const extractPublicId = (url) => {
