@@ -3,6 +3,7 @@ import userModel from "../models/userModel.js";
 import reviewModel from "../models/reviewModel.js";
 import { recomputeProductRating } from "./reviewController.js";
 import { sendOrderNotificationEmail, sendOrderConfirmationEmail } from "../utils/sendEmail.js";
+import { generateWarrantyCardsForOrder } from "./warrantyController.js";
 
 //placing order using cod method
 const placeOrder = async (req,res) =>{
@@ -44,6 +45,17 @@ const placeOrder = async (req,res) =>{
         }
 
         await userModel.findByIdAndUpdate(userId,{cartData:{}})
+
+        // Automatically generate warranty cards for the eligible (warranted)
+        // products in this order. Fully isolated: any failure here is logged
+        // and never affects the customer's saved order. Cards are stored once
+        // per order/product, so repeated views never create duplicates.
+        try {
+            await generateWarrantyCardsForOrder(newOrder)
+        } catch (warrantyError) {
+            console.log("Warranty card generation failed:", warrantyError)
+        }
+
         res.json({success:true,message:"Order Placed",order:newOrder})
 
         

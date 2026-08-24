@@ -11,6 +11,7 @@ import orderRouter from './routes/orderRoute.js'
 import reviewRouter from './routes/reviewRoute.js'
 import categoryRouter from './routes/categoryRoute.js'
 import manualInvoiceRouter from './routes/manualInvoiceRoute.js'
+import warrantyRouter from './routes/warrantyRoute.js'
 import sitemapRouter from './routes/sitemapRoute.js'
 
 
@@ -93,6 +94,7 @@ app.use('/api/order',orderRouter)
 app.use('/api/review',reviewRouter)
 app.use('/api/category',categoryRouter)
 app.use('/api/manual-invoice',manualInvoiceRouter)
+app.use('/api/warranty',warrantyRouter)
 app.use('/sitemap.xml', sitemapRouter)
 app.get('/',(req,res)=>{
     res.send("API Working")

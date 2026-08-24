@@ -12,6 +12,7 @@ const productSchema = new mongoose.Schema({
     bestseller:{type: Boolean},
     stock:{type: String, default: 'In Stock'},
     featured:{type: Boolean, default: false},
+    warranty:{type: String, default: ''},
     avgRating:{type: Number, default: 0},
     reviewCount:{type: Number, default: 0},
     date:{type: Number, required: true},

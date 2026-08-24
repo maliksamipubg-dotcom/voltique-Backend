@@ -83,7 +83,7 @@ const parseSizes = (raw) => {
 //function for add product
 const addProduct = async (req,res) => {
     try {
-        const { name, description, price, category, subCategory, sizes, bestseller, stock, featured } = req.body
+        const { name, description, price, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
 
         const uploadedFiles = req.files || []
         if (uploadedFiles.length < 1) {
@@ -112,6 +112,7 @@ const addProduct = async (req,res) => {
             options,
             stock: stock || 'In Stock',
             featured: featured === "true" ? true : false,
+            warranty: String(warranty || '').trim(),
             image: imagesUrl,
             date: Date.now()
         }
@@ -131,7 +132,7 @@ const addProduct = async (req,res) => {
 //function for updating product
 const updateProduct = async (req,res) => {
     try {
-        const { id, name, description, price, category, subCategory, sizes, bestseller, stock, featured } = req.body
+        const { id, name, description, price, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
         let existingImages = []
         try {
             existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : []
@@ -178,6 +179,11 @@ const updateProduct = async (req,res) => {
             stock: stock || 'In Stock',
             featured: featured === "true" ? true : false,
             image: mergedImages
+        }
+        // Warranty is an additive, optional field used by the Warranty Card
+        // System. Only touched when the request actually includes it.
+        if (warranty != null) {
+            updateData.warranty = String(warranty).trim()
         }
         await productModel.findByIdAndUpdate(id, updateData)
         invalidateCatalogCache()
