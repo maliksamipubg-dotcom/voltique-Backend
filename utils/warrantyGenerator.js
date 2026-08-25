@@ -146,8 +146,8 @@ const buildWarrantyCardPage = (doc, card, productImage) => {
     doc.text(`Address: ${STORE.address}`, MARGIN, contactY + 22, { width: CONTENT_WIDTH - 210, lineBreak: false })
 
     // Right: title + warranty card number badge + meta rows
-    const rightX = PAGE.width - MARGIN - 190
-    const rightW = 190
+    const rightX = PAGE.width - MARGIN - 205
+    const rightW = 205
 
     setFont('bold', 20)
     doc.fillColor(BRAND.primary)
@@ -162,7 +162,7 @@ const buildWarrantyCardPage = (doc, card, productImage) => {
     setFont('bold', 9)
     const badgeW = doc.widthOfString(card.cardNumber) + 20
     const badgeX = rightX + rightW - badgeW
-    const badgeY = y + 28
+    const badgeY = y + 34
     doc.save()
     doc.roundedRect(badgeX, badgeY, badgeW, 16, 8).fill(BRAND.lightBlue)
     setFont('bold', 9)
