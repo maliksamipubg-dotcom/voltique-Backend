@@ -29,9 +29,10 @@ const staticPages = [
   { path: '/collections', priority: '0.9', freq: 'daily' },
   { path: '/about', priority: '0.7', freq: 'monthly' },
   { path: '/contact', priority: '0.7', freq: 'monthly' },
-  { path: '/cart', priority: '0.5', freq: 'weekly' },
-  { path: '/login', priority: '0.4', freq: 'monthly' },
 ]
+
+const isAvailable = (product) =>
+  !/^\s*out of stock\s*$/i.test(String(product.stock || ''))
 
 const buildSitemap = (products) => {
   const staticUrls = staticPages
@@ -62,8 +63,9 @@ sitemapRouter.get('/', async (req, res) => {
       res.setHeader('Content-Type', 'application/xml')
       return res.send(cached)
     }
-    const products = await productModel.find({}).select('name date _id').lean()
-    const xml = buildSitemap(products)
+    const products = await productModel.find({}).select('name date _id stock').lean()
+    const availableProducts = products.filter(isAvailable)
+    const xml = buildSitemap(availableProducts)
     cache.set(SITEMAP_CACHE_KEY, xml, SITEMAP_TTL_MS)
     res.setHeader('Content-Type', 'application/xml')
     res.send(xml)
