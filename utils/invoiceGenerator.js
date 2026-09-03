@@ -84,6 +84,7 @@ const fetchImageBuffer = async (url) => {
 const buildInvoice = (doc, order, itemImages, opts) => {
     const items = Array.isArray(order.items) ? order.items : []
     const address = order.address || {}
+    const n = items.length
 
     const subtotal = items.reduce(
         (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
@@ -105,6 +106,22 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     let y = 0
     let pageNo = 1
 
+    // ------------------------------------------------------------------
+    // Adaptive compression — dynamically size everything based on item count
+    // ------------------------------------------------------------------
+    const isAggressive = n > 4
+    const isVeryAggressive = n >= 8
+
+    // Card height: normal ~110–120, compressed 85–95
+    const minCardH = isVeryAggressive ? 85 : isAggressive ? 90 : 108
+    const maxCardH = isVeryAggressive ? 88 : isAggressive ? 95 : 120
+
+    // Summary row height: normal 18, compressed 15
+    const sumRowH = isVeryAggressive ? 15 : isAggressive ? 16 : 18
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
     const setFont = (weight, size) => {
         doc.font(weight === 'bold' ? 'Helvetica-Bold' : 'Helvetica')
         doc.fontSize(size)
@@ -146,19 +163,18 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     }
 
     // ------------------------------------------------------------------
-    // Top gradient band
+    // Gradient band (always at the top of the page)
     // ------------------------------------------------------------------
     const band = doc.linearGradient(0, 0, PAGE.width, 0)
     band.stop(0, BRAND.primary).stop(1, BRAND.accent)
     doc.rect(0, 0, PAGE.width, 6).fill(band)
 
-    // Footer for the first page (drawn before content, never overlaps it)
     drawPageFooter()
 
     // ------------------------------------------------------------------
     // Header: logo + brand name + tagline (left) | INVOICE (right)
     // ------------------------------------------------------------------
-    y = 24
+    const logoH = isVeryAggressive ? 36 : isAggressive ? 40 : 44
 
     let logo = null
     try {
@@ -171,7 +187,8 @@ const buildInvoice = (doc, order, itemImages, opts) => {
         logo = null
     }
 
-    const logoH = 44
+    y = isVeryAggressive ? 18 : isAggressive ? 20 : 24
+
     let logoW = logoH
     if (logo && logo.buffer) {
         logoW = logo.width && logo.height ? (logoH * logo.width) / logo.height : logoH
@@ -182,7 +199,6 @@ const buildInvoice = (doc, order, itemImages, opts) => {
         }
     }
 
-    // Brand name + tagline, vertically centered beside the logo as one identity
     const brandX = MARGIN + (logo ? logoW + 12 : 0)
     const blockH = 28
     const brandTop = y + (logo ? (logoH - blockH) / 2 : 12)
@@ -194,7 +210,6 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     doc.fillColor(BRAND.muted)
     doc.text('Battery Chargers & Power Solutions', brandX, brandTop + 20, { lineBreak: false })
 
-    // Contact info under the logo
     const contactY = y + 50
     setFont('normal', 7.5)
     doc.fillColor(BRAND.muted)
@@ -202,7 +217,6 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     doc.text('03063720139', MARGIN, contactY + 11, { width: 175, lineBreak: false })
     doc.text('Saddar, Karachi, Pakistan', MARGIN, contactY + 22, { width: 175, lineBreak: false })
 
-    // Right: INVOICE title + invoice number badge + meta rows
     const rightX = PAGE.width - MARGIN - 190
     const rightW = 190
 
@@ -215,7 +229,6 @@ const buildInvoice = (doc, order, itemImages, opts) => {
         characterSpacing: 2,
     })
 
-    // Invoice number badge
     setFont('bold', 9)
     const badgeW = doc.widthOfString(invoiceNumber) + 20
     const badgeX = rightX + rightW - badgeW
@@ -242,11 +255,13 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     drawMetaRow('Order ID', order.orderId || order._id || '—', badgeY + 37)
     drawMetaRow('Payment Method', paymentMethod, badgeY + 52)
 
-    // Divider below header
-    y = 152
+    // ------------------------------------------------------------------
+    // Divider
+    // ------------------------------------------------------------------
+    y = isVeryAggressive ? 104 : isAggressive ? 108 : 112
     doc.strokeColor(BRAND.border).lineWidth(1)
     doc.moveTo(MARGIN, y).lineTo(PAGE.width - MARGIN, y).stroke()
-    y += 16
+    y += isVeryAggressive ? 10 : isAggressive ? 12 : 14
 
     // ------------------------------------------------------------------
     // Customer details + shipping address cards
@@ -254,11 +269,6 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     const cardGap = 14
     const cardW = (CONTENT_WIDTH - cardGap) / 2
     const streetLine = buildStreetLine(address)
-
-    // Optional customer rows (email / city / state / postal code / country)
-    // are only rendered when they have a value. Automatic order invoices keep
-    // the "—" fallback; manual invoices opt in via omitEmptyAddressRows so that
-    // blank optional fields are simply omitted instead of shown as "—".
     const omitEmpty = !!(opts && opts.omitEmptyAddressRows)
     const rowValue = (value) => {
         const text = value == null ? '' : String(value).trim()
@@ -289,7 +299,8 @@ const buildInvoice = (doc, order, itemImages, opts) => {
         return h + 10
     }
 
-    const cardH = Math.max(measureCard(leftRows), measureCard(rightRows), 110)
+    const rawCardH = Math.max(measureCard(leftRows), measureCard(rightRows))
+    const cardH = Math.min(maxCardH, Math.max(minCardH, rawCardH))
 
     const drawCard = (x, title, rows) => {
         doc.save()
@@ -323,24 +334,74 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     y += cardH + 20
 
     // ------------------------------------------------------------------
-    // Order details table
+    // ORDER DETAILS section title
     // ------------------------------------------------------------------
-    setFont('bold', 12)
+    const titleFontSize = isVeryAggressive ? 10 : isAggressive ? 11 : 12
+    setFont('bold', titleFontSize)
     doc.fillColor(BRAND.ink)
     doc.text('ORDER DETAILS', MARGIN, y, { lineBreak: false })
-    doc.rect(MARGIN, y + 16, 36, 3).fill(BRAND.primary)
-    y += 30
+    doc.rect(MARGIN, y + 14, 36, 3).fill(BRAND.primary)
+    y += isVeryAggressive ? 24 : isAggressive ? 26 : 30
 
+    // ------------------------------------------------------------------
+    // Dynamic row height — calculate based on available space
+    // ------------------------------------------------------------------
+    const THH = 22 // table header height
+
+    // Footer + thank-you section
+    const footerH = isVeryAggressive ? 80 : isAggressive ? 82 : 90
+    const thankYouY = PAGE.height - 50 - footerH
+    const footerTop = thankYouY - 20
+
+    const summaryHeaderH = isVeryAggressive ? 20 : isAggressive ? 22 : 28
+    const summaryRowCount = 2 + (discount > 0 ? 1 : 0) + (tax > 0 ? 1 : 0)
+    const gtH = 30
+    const rbH = 30
+    const summaryTotalH = summaryHeaderH + summaryRowCount * sumRowH + 12 + gtH + 8 + 18 + rbH
+    const tableAvailableH = footerTop - y - THH - 14
+
+    // ------------------------------------------------------------------
+    // Table columns (needed for name pre-measurement)
+    // ------------------------------------------------------------------
     const colX = [0, 52, 210, 274, 350, 384, 454].map((c) => MARGIN + c)
     const colW = [52, 158, 64, 76, 34, 70, 61]
-    const headerH = 22
-    const tableStartY = y
+    const cellFontSize = isVeryAggressive ? 7 : isAggressive ? 7.5 : 8.5
+    const nameW = colW[1] - 12
+
+    // ------------------------------------------------------------------
+    // Dynamic row height — calculate based on available space + name lengths
+    // ------------------------------------------------------------------
+    let rowH
+    if (n <= 4) {
+        rowH = 46
+    } else {
+        const maxTableH = tableAvailableH - summaryTotalH - 14
+        const h = Math.floor(maxTableH / Math.max(n, 1))
+        const minRowH = isVeryAggressive ? 22 : 28
+        const maxRowH = isVeryAggressive ? 30 : 38
+        rowH = Math.max(minRowH, Math.min(h, maxRowH))
+    }
+
+    // Pre-measure product name heights to get accurate total table height
+    setFont('normal', cellFontSize)
+    const measuredRowHeights = items.map((item) => {
+        const name = String(item.name || '—')
+        const nameH = doc.heightOfString(name, { width: nameW, lineBreak: true, lineGap: 2 })
+        return Math.max(rowH, nameH + 10)
+    })
+
+    const actualTotalTableH = THH + measuredRowHeights.reduce((s, h) => s + h, 0) + 14
+
+    // ------------------------------------------------------------------
+    // Decide: single page or multi-page
+    // ------------------------------------------------------------------
+    const fitsOnOnePage = (y + actualTotalTableH + summaryTotalH) <= footerTop
 
     const drawTableHeader = () => {
         doc.save()
         doc.fillColor(BRAND.primary)
-        doc.roundedRect(MARGIN, y, CONTENT_WIDTH, headerH, 5).fill()
-        doc.rect(MARGIN, y + headerH / 2, CONTENT_WIDTH, headerH / 2).fill()
+        doc.roundedRect(MARGIN, y, CONTENT_WIDTH, THH, 5).fill()
+        doc.rect(MARGIN, y + THH / 2, CONTENT_WIDTH, THH / 2).fill()
 
         doc.fillColor(BRAND.white)
         setFont('bold', 7)
@@ -363,7 +424,7 @@ const buildInvoice = (doc, order, itemImages, opts) => {
             })
         }
         doc.restore()
-        y += headerH
+        y += THH
     }
 
     const drawItemPlaceholder = (ix, iy, iw, ih) => {
@@ -379,26 +440,18 @@ const buildInvoice = (doc, order, itemImages, opts) => {
 
     const drawItemRow = (item, img, index) => {
         const name = String(item.name || '—')
-        const nameW = colW[1] - 12
-        setFont('normal', 8.5)
-        const nameH = doc.heightOfString(name, { width: nameW, lineBreak: true, lineGap: 2 })
-        const rowH = Math.max(46, nameH + 18)
-
-        if (y + rowH > BOTTOM_LIMIT) {
-            y = newPage()
-            drawTableHeader()
-        }
+        const effectiveRowH = measuredRowHeights[index]
 
         const rowTop = y
 
         // Row background
         doc.fillColor(index % 2 === 0 ? BRAND.white : BRAND.rowAlt)
-        doc.rect(MARGIN, rowTop, CONTENT_WIDTH, rowH).fill()
+        doc.rect(MARGIN, rowTop, CONTENT_WIDTH, effectiveRowH).fill()
 
         // Product image
-        const box = 40
+        const box = isVeryAggressive ? 32 : isAggressive ? 36 : 40
         const ix = colX[0] + (colW[0] - box) / 2
-        const iy = rowTop + (rowH - box) / 2
+        const iy = rowTop + (effectiveRowH - box) / 2
 
         if (img && img.buffer) {
             try {
@@ -421,41 +474,43 @@ const buildInvoice = (doc, order, itemImages, opts) => {
             drawItemPlaceholder(ix, iy, box, box)
         }
 
-        // Product name (wrapped)
-        setFont('normal', 8.5)
+        // Product name
+        setFont('normal', cellFontSize)
+        const nameH = doc.heightOfString(name, { width: nameW, lineBreak: true, lineGap: 2 })
+        const lineGap = Math.max(1, effectiveRowH - nameH - 14)
         doc.fillColor(BRAND.ink)
-        doc.text(name, colX[1] + 6, rowTop + (rowH - nameH) / 2, { width: nameW, lineGap: 2 })
+        doc.text(name, colX[1] + 6, rowTop + (effectiveRowH - nameH) / 2, { width: nameW, lineGap })
 
         // Category
-        setFont('normal', 8.5)
+        setFont('normal', cellFontSize)
         doc.fillColor(BRAND.muted)
-        doc.text(String(item.category || '—'), colX[2] + 6, rowTop + (rowH - 10) / 2, {
+        doc.text(String(item.category || '—'), colX[2] + 6, rowTop + (effectiveRowH - 10) / 2, {
             width: colW[2] - 12,
             lineBreak: false,
         })
 
-        // Variant (Ampere / Model)
+        // Variant
         const variant = String(item.size || 'Default')
-        setFont('normal', 8.5)
+        setFont('normal', cellFontSize)
         doc.fillColor(BRAND.muted)
-        doc.text(variant, colX[3] + 6, rowTop + (rowH - 10) / 2, {
+        doc.text(variant, colX[3] + 6, rowTop + (effectiveRowH - 10) / 2, {
             width: colW[3] - 12,
             lineBreak: false,
         })
 
         // Quantity
-        setFont('normal', 8.5)
+        setFont('normal', cellFontSize)
         doc.fillColor(BRAND.ink)
-        doc.text(String(item.quantity || 1), colX[4], rowTop + (rowH - 10) / 2, {
+        doc.text(String(item.quantity || 1), colX[4], rowTop + (effectiveRowH - 10) / 2, {
             width: colW[4],
             align: 'center',
             lineBreak: false,
         })
 
         // Unit price
-        setFont('normal', 8.5)
+        setFont('normal', cellFontSize)
         doc.fillColor(BRAND.ink)
-        doc.text(fmtPrice(item.price), colX[5] + 6, rowTop + (rowH - 10) / 2, {
+        doc.text(fmtPrice(item.price), colX[5] + 6, rowTop + (effectiveRowH - 10) / 2, {
             width: colW[5] - 12,
             align: 'right',
             lineBreak: false,
@@ -463,9 +518,9 @@ const buildInvoice = (doc, order, itemImages, opts) => {
 
         // Subtotal
         const lineTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1)
-        setFont('bold', 8.5)
+        setFont('bold', cellFontSize)
         doc.fillColor(BRAND.ink)
-        doc.text(fmtPrice(lineTotal), colX[6] + 6, rowTop + (rowH - 10) / 2, {
+        doc.text(fmtPrice(lineTotal), colX[6] + 6, rowTop + (effectiveRowH - 10) / 2, {
             width: colW[6] - 12,
             align: 'right',
             lineBreak: false,
@@ -473,47 +528,68 @@ const buildInvoice = (doc, order, itemImages, opts) => {
 
         // Row bottom border
         doc.strokeColor(BRAND.border).lineWidth(0.6)
-        doc.moveTo(MARGIN, rowTop + rowH).lineTo(PAGE.width - MARGIN, rowTop + rowH).stroke()
+        doc.moveTo(MARGIN, rowTop + effectiveRowH).lineTo(PAGE.width - MARGIN, rowTop + effectiveRowH).stroke()
 
-        y = rowTop + rowH
+        y = rowTop + effectiveRowH
     }
 
-    drawTableHeader()
-
-    items.forEach((item, index) => {
-        drawItemRow(item, itemImages[index], index)
-    })
-
-    const tableEndY = y
-
-    // Vertical grid lines for the table
-    if (tableEndY > tableStartY + headerH) {
-        doc.save()
-        doc.strokeColor(BRAND.line).lineWidth(0.5)
-        for (let c = 1; c < colX.length; c++) {
-            doc.moveTo(colX[c], tableStartY).lineTo(colX[c], tableEndY).stroke()
+    const drawVerticalGridLines = (startY, endY) => {
+        if (endY > startY + THH) {
+            doc.save()
+            doc.strokeColor(BRAND.line).lineWidth(0.5)
+            for (let c = 1; c < colX.length; c++) {
+                doc.moveTo(colX[c], startY).lineTo(colX[c], endY).stroke()
+            }
+            doc.strokeColor(BRAND.border).lineWidth(0.8)
+            doc.moveTo(MARGIN, startY).lineTo(MARGIN, endY).stroke()
+            doc.moveTo(PAGE.width - MARGIN, startY).lineTo(PAGE.width - MARGIN, endY).stroke()
+            doc.restore()
         }
-        doc.strokeColor(BRAND.border).lineWidth(0.8)
-        doc.moveTo(MARGIN, tableStartY).lineTo(MARGIN, tableEndY).stroke()
-        doc.moveTo(PAGE.width - MARGIN, tableStartY).lineTo(PAGE.width - MARGIN, tableEndY).stroke()
-        doc.restore()
     }
 
-    y += 22
+    // ------------------------------------------------------------------
+    // Draw table (single-page or multi-page)
+    // ------------------------------------------------------------------
+    if (fitsOnOnePage) {
+        // Everything fits on one page — draw normally
+        drawTableHeader()
+        const singlePageTableStartY = y
+        items.forEach((item, index) => {
+            drawItemRow(item, itemImages[index], index)
+        })
+        drawVerticalGridLines(singlePageTableStartY, y)
+        y += 20
+    } else {
+        // Multi-page: draw rows across pages, payment summary on last page
+        drawTableHeader()
+        let tableStartY = y
+        items.forEach((item, index) => {
+            if (y + rowH + 30 > BOTTOM_LIMIT) {
+                drawVerticalGridLines(tableStartY, y)
+                y = newPage()
+                drawTableHeader()
+                tableStartY = y
+            }
+            drawItemRow(item, itemImages[index], index)
+        })
+        drawVerticalGridLines(tableStartY, y)
+        y += 20
+    }
 
     // ------------------------------------------------------------------
     // Payment summary
     // ------------------------------------------------------------------
-    ensureSpace(260)
-
     const sumW = 250
     const sumX = PAGE.width - MARGIN - sumW
 
-    setFont('bold', 11)
+    // Ensure we have space for the summary
+    ensureSpace(summaryTotalH + 30)
+
+    setFont('bold', isVeryAggressive ? 9 : isAggressive ? 10 : 11)
     doc.fillColor(BRAND.ink)
     doc.text('PAYMENT SUMMARY', sumX, y, { lineBreak: false })
-    doc.rect(sumX, y + 15, 36, 3).fill(BRAND.primary)
-    y += 28
+    doc.rect(sumX, y + 13, 36, 3).fill(BRAND.primary)
+    y += summaryHeaderH
 
     const summaryRows = [
         ['Subtotal', fmtPrice(subtotal)],
@@ -522,12 +598,11 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     if (discount > 0) summaryRows.push(['Discount', `- ${fmtPrice(discount)}`])
     if (tax > 0) summaryRows.push(['Tax', fmtPrice(tax)])
 
-    const sumRowH = 18
     for (const [label, value] of summaryRows) {
-        setFont('normal', 9)
+        setFont('normal', isVeryAggressive ? 8 : 9)
         doc.fillColor(BRAND.muted)
         doc.text(label, sumX, y, { width: sumW - 110, lineBreak: false })
-        setFont('normal', 9)
+        setFont('normal', isVeryAggressive ? 8 : 9)
         doc.fillColor(BRAND.ink)
         doc.text(value, sumX + 100, y, { width: sumW - 100, align: 'right', lineBreak: false })
         y += sumRowH
@@ -538,32 +613,30 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     doc.moveTo(sumX, y).lineTo(sumX + sumW, y).stroke()
     y += 10
 
-    // Grand total (highlighted)
-    const gtH = 30
+    // Grand total
     doc.save()
     doc.roundedRect(sumX, y, sumW, gtH, 6).fill(BRAND.primary)
-    setFont('bold', 10)
+    setFont('bold', isVeryAggressive ? 9 : 10)
     doc.fillColor(BRAND.white)
     doc.text('GRAND TOTAL', sumX + 14, y + 10, { width: 130, lineBreak: false })
     doc.text(fmtPrice(grandTotal), sumX + 14, y + 10, { width: sumW - 28, align: 'right', lineBreak: false })
     doc.restore()
     y += gtH
 
-    // Advance Payment (deducted from grand total; always shown, Rs 0 when none)
+    // Advance Payment
     y += 8
-    setFont('normal', 9)
+    setFont('normal', isVeryAggressive ? 8 : 9)
     doc.fillColor(BRAND.muted)
     doc.text('Advance Payment', sumX, y, { width: sumW - 110, lineBreak: false })
-    setFont('normal', 9)
+    setFont('normal', isVeryAggressive ? 8 : 9)
     doc.fillColor(BRAND.danger)
     doc.text(`- ${fmtPrice(advancePayment)}`, sumX + 100, y, { width: sumW - 100, align: 'right', lineBreak: false })
     y += 18
 
-    // Remaining balance (highlighted)
-    const rbH = 30
+    // Remaining balance
     doc.save()
     doc.roundedRect(sumX, y, sumW, rbH, 6).fill(BRAND.green)
-    setFont('bold', 10)
+    setFont('bold', isVeryAggressive ? 9 : 10)
     doc.fillColor(BRAND.white)
     doc.text('REMAINING BALANCE', sumX + 14, y + 10, { width: 180, lineBreak: false })
     doc.text(fmtPrice(remainingBalance), sumX + 14, y + 10, { width: sumW - 28, align: 'right', lineBreak: false })
@@ -573,32 +646,32 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     // ------------------------------------------------------------------
     // Thank you footer
     // ------------------------------------------------------------------
-    y += 26
-    ensureSpace(90)
+    y += isVeryAggressive ? 16 : isAggressive ? 20 : 26
+    ensureSpace(footerH)
 
     doc.save()
-    setFont('bold', 12)
+    setFont('bold', isVeryAggressive ? 10 : isAggressive ? 11 : 12)
     doc.fillColor(BRAND.ink)
     doc.text('Thank you for shopping with Voltique Hub.', MARGIN, y, { lineBreak: false })
-    y += 22
+    y += isVeryAggressive ? 16 : isAggressive ? 18 : 22
 
-    setFont('normal', 9)
+    setFont('normal', isVeryAggressive ? 8 : 9)
     doc.fillColor(BRAND.muted)
     doc.text('For support, please contact us at:', MARGIN, y, { lineBreak: false })
-    y += 14
+    y += isVeryAggressive ? 10 : isAggressive ? 12 : 14
 
     doc.fillColor(BRAND.primary)
-    setFont('bold', 9)
+    setFont('bold', isVeryAggressive ? 8 : 9)
     doc.text('voltiquehubsupport@gmail.com     |     03063720139', MARGIN, y, { lineBreak: false })
-    y += 17
+    y += isVeryAggressive ? 12 : isAggressive ? 14 : 17
 
-    setFont('normal', 9)
+    setFont('normal', isVeryAggressive ? 8 : 9)
     doc.fillColor(BRAND.muted)
     doc.text('Website: Voltique Hub', MARGIN, y, { lineBreak: false })
-    y += 20
+    y += isVeryAggressive ? 12 : isAggressive ? 14 : 20
 
     doc.fillColor(BRAND.muted)
-    setFont('normal', 8.5)
+    setFont('normal', isVeryAggressive ? 7 : 8.5)
     doc.text('This is a computer-generated invoice and does not require a signature.', MARGIN, y, {
         width: CONTENT_WIDTH,
         lineBreak: false,
