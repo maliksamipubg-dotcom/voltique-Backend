@@ -166,4 +166,79 @@ const downloadManualInvoicePdf = async (req, res) => {
     }
 }
 
-export { createManualInvoice, listManualInvoices, deleteManualInvoice, downloadManualInvoicePdf }
+const updateManualInvoice = async (req, res) => {
+    try {
+        const { invoiceId, customer, items, discount, advancePayment, notes, paymentMethod, shippingCharges } = req.body
+
+        if (!invoiceId) {
+            return res.json({ success: false, message: 'Invoice ID is required' })
+        }
+
+        const invoice = await manualInvoiceModel.findById(invoiceId)
+        if (!invoice) {
+            return res.json({ success: false, message: 'Invoice not found' })
+        }
+
+        if (!customer || !customer.name || !customer.phone || !customer.address) {
+            return res.json({ success: false, message: 'Customer name, phone number and address are required' })
+        }
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.json({ success: false, message: 'Select at least one product' })
+        }
+
+        const cleanItems = items
+            .map((it) => ({
+                productId: String(it.productId || ''),
+                name: String(it.name || '').trim(),
+                image: Array.isArray(it.image) ? it.image : it.image ? [it.image] : [],
+                category: String(it.category || ''),
+                size: String(it.size || 'Default'),
+                originalPrice: Number(it.originalPrice) || 0,
+                price: Number(it.price) || 0,
+                quantity: Number(it.quantity) || 1,
+            }))
+            .filter((it) => it.name && it.price >= 0 && it.quantity > 0)
+
+        if (cleanItems.length === 0) {
+            return res.json({ success: false, message: 'Select at least one product with a valid price and quantity' })
+        }
+
+        const method = paymentMethod === 'Online Payment' ? 'Online Payment' : 'COD'
+        const rawShipping = Number(shippingCharges)
+        const shipping = Number.isFinite(rawShipping) && rawShipping > 0 ? rawShipping : 0
+
+        const subtotal = cleanItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
+        const disc = Number(discount) || 0
+        const adv = Number(advancePayment) || 0
+        const grandTotal = Math.max(0, subtotal + shipping - disc)
+        const remainingBalance = Math.max(0, grandTotal - adv)
+
+        invoice.customer = {
+            name: String(customer.name).trim(),
+            phone: String(customer.phone).trim(),
+            email: String(customer.email || '').trim(),
+            address: String(customer.address).trim(),
+            city: String(customer.city || '').trim(),
+            state: String(customer.state || '').trim(),
+            postalCode: String(customer.postalCode || '').trim(),
+            country: String(customer.country || '').trim(),
+        }
+        invoice.items = cleanItems
+        invoice.subtotal = subtotal
+        invoice.discount = disc
+        invoice.grandTotal = grandTotal
+        invoice.advancePayment = adv
+        invoice.remainingBalance = remainingBalance
+        invoice.paymentMethod = method
+        invoice.shippingCharges = shipping
+        invoice.notes = String(notes || '').trim()
+
+        await invoice.save()
+        res.json({ success: true, message: 'Invoice updated successfully', invoice })
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+export { createManualInvoice, listManualInvoices, deleteManualInvoice, downloadManualInvoicePdf, updateManualInvoice }

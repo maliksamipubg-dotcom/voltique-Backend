@@ -258,7 +258,7 @@ const buildInvoice = (doc, order, itemImages, opts) => {
     // ------------------------------------------------------------------
     // Divider
     // ------------------------------------------------------------------
-    y = isVeryAggressive ? 104 : isAggressive ? 108 : 112
+    y = isVeryAggressive ? 112 : isAggressive ? 116 : 120
     doc.strokeColor(BRAND.border).lineWidth(1)
     doc.moveTo(MARGIN, y).lineTo(PAGE.width - MARGIN, y).stroke()
     y += isVeryAggressive ? 10 : isAggressive ? 12 : 14
