@@ -83,7 +83,7 @@ const parseSizes = (raw) => {
 //function for add product
 const addProduct = async (req,res) => {
     try {
-        const { name, description, price, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
+        const { name, description, price, discountAmount, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
 
         const uploadedFiles = req.files || []
         if (uploadedFiles.length < 1) {
@@ -101,11 +101,13 @@ const addProduct = async (req,res) => {
             amperes = options[0].values
         }
 
+        const discount = discountAmount !== undefined && discountAmount !== null && discountAmount !== '' ? Math.max(0, Number(discountAmount)) : 0
         const productData = {
             name,
             description,
             category,
             price: Number(price),
+            discountAmount: discount,
             subCategory,
             bestseller: bestseller === "true" ? true : false,
             sizes: amperes,
@@ -132,7 +134,7 @@ const addProduct = async (req,res) => {
 //function for updating product
 const updateProduct = async (req,res) => {
     try {
-        const { id, name, description, price, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
+        const { id, name, description, price, discountAmount, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
         let existingImages = []
         try {
             existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : []
@@ -167,12 +169,15 @@ const updateProduct = async (req,res) => {
             amperes = options[0].values
         }
 
+        const discount = discountAmount !== undefined && discountAmount !== null && discountAmount !== '' ? Math.max(0, Number(discountAmount)) : 0
+
         const updateData = {
             name,
             description,
             category,
             subCategory,
             price: Number(price),
+            discountAmount: discount,
             bestseller: bestseller === "true" ? true : false,
             sizes: amperes,
             options,
