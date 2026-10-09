@@ -17,6 +17,7 @@ const productSchema = new mongoose.Schema({
     avgRating:{type: Number, default: 0},
     reviewCount:{type: Number, default: 0},
     date:{type: Number, required: true},
+    soldCount:{type: Number, default: 0, min: 0},
 })
 const productModel = mongoose.models.product || mongoose.model("product",productSchema);
 

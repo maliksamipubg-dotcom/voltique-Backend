@@ -80,10 +80,17 @@ const parseSizes = (raw) => {
     }
 }
 
+// Manually entered display-only sales count. Never derived from orders.
+const parseSoldCount = (raw) => {
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) return 0
+    return Math.floor(value)
+}
+
 //function for add product
 const addProduct = async (req,res) => {
     try {
-        const { name, description, price, discountAmount, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
+        const { name, description, price, discountAmount, category, subCategory, sizes, bestseller, stock, featured, warranty, soldCount } = req.body
 
         const uploadedFiles = req.files || []
         if (uploadedFiles.length < 1) {
@@ -115,6 +122,7 @@ const addProduct = async (req,res) => {
             stock: stock || 'In Stock',
             featured: featured === "true" ? true : false,
             warranty: String(warranty || '').trim(),
+            soldCount: parseSoldCount(soldCount),
             image: imagesUrl,
             date: Date.now()
         }
@@ -134,7 +142,7 @@ const addProduct = async (req,res) => {
 //function for updating product
 const updateProduct = async (req,res) => {
     try {
-        const { id, name, description, price, discountAmount, category, subCategory, sizes, bestseller, stock, featured, warranty } = req.body
+        const { id, name, description, price, discountAmount, category, subCategory, sizes, bestseller, stock, featured, warranty, soldCount } = req.body
         let existingImages = []
         try {
             existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : []
@@ -189,6 +197,11 @@ const updateProduct = async (req,res) => {
         // System. Only touched when the request actually includes it.
         if (warranty != null) {
             updateData.warranty = String(warranty).trim()
+        }
+        // Sold count is a manually entered display value. Only touched when
+        // the request actually includes it, so existing counts are preserved.
+        if (soldCount !== undefined) {
+            updateData.soldCount = parseSoldCount(soldCount)
         }
         await productModel.findByIdAndUpdate(id, updateData)
         invalidateCatalogCache()
