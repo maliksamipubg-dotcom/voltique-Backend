@@ -13,6 +13,7 @@ import categoryRouter from './routes/categoryRoute.js'
 import manualInvoiceRouter from './routes/manualInvoiceRoute.js'
 import warrantyRouter from './routes/warrantyRoute.js'
 import sitemapRouter from './routes/sitemapRoute.js'
+import metaFeedRouter from './routes/metaFeedRoute.js'
 
 
 //App Config
@@ -96,6 +97,7 @@ app.use('/api/category',categoryRouter)
 app.use('/api/manual-invoice',manualInvoiceRouter)
 app.use('/api/warranty',warrantyRouter)
 app.use('/sitemap.xml', sitemapRouter)
+app.use('/api/meta-product-feed', metaFeedRouter)
 app.get('/',(req,res)=>{
     res.send("API Working")
 })
